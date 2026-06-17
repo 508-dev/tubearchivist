@@ -12,13 +12,18 @@ from os import path
 import yt_dlp
 from appsettings.src.config import AppConfig
 from common.src.env_settings import EnvironmentSettings
-from common.src.helper import deep_merge
+from common.src.helper import deep_merge, rand_sleep
 from common.src.ta_redis import RedisArchivist
 from django.conf import settings
 
 
 class YtWrap:
     """wrap calls to yt"""
+
+    BOT_MESSAGES = [
+        "not a bot",
+    ]
+    BOT_ERROR_LOG = "YouTube bot detection, abort!"
 
     OBS_BASE = {
         "default_search": "ytsearch",
@@ -29,6 +34,7 @@ class YtWrap:
         "cachedir": path.abspath(
             path.join(EnvironmentSettings.CACHE_DIR, "ytdlp")
         ),
+        "plugin_dirs": [],
     }
 
     def __init__(self, obs_request, config=False):
@@ -74,7 +80,7 @@ class YtWrap:
             )
             return
 
-        # https://github.com/Brainicism/bgutil-ytdlp-pot-provider/pull/185
+        # from fork: https://github.com/bbilly1/bgutil-ytdlp-pot-provider
         deep_merge(
             self.obs,
             {
@@ -94,6 +100,10 @@ class YtWrap:
                 print(f"{url}: failed to download with message {err}")
                 if "Temporary failure in name resolution" in str(err):
                     raise ConnectionError("lost the internet, abort!") from err
+                if any(m in str(err) for m in self.BOT_MESSAGES):
+                    print(self.BOT_ERROR_LOG)
+                    rand_sleep(self.config)
+                    raise ConnectionError(self.BOT_ERROR_LOG) from err
 
                 return False, str(err)
 
@@ -122,6 +132,10 @@ class YtWrap:
                 print(f"{url}: failed to get info from youtube: {err}")
                 if "Temporary failure in name resolution" in str(err):
                     raise ConnectionError("lost the internet, abort!") from err
+                if any(m in str(err) for m in self.BOT_MESSAGES):
+                    print(self.BOT_ERROR_LOG)
+                    rand_sleep(self.config)
+                    raise ConnectionError(self.BOT_ERROR_LOG) from err
 
                 return None, str(err)
 
